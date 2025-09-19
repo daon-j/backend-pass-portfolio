@@ -179,16 +179,16 @@ resource "aws_iam_instance_profile" "ec2_profile" {
 
 # EC2 인스턴스
 resource "aws_instance" "app" {
-  ami           = "ami-0e9bfdb247cc8de84"  # Ubuntu 22.04 LTS AMI
-  instance_type = "t3.micro"
+  ami           = "ami-0e9bfdb247cc8de84" # Ubuntu 22.04 LTS AMI
+  instance_type = "t2.micro"
   subnet_id     = aws_subnet.public_1.id
 
   # 세부 모니터링 활성화
   monitoring = true
 
   vpc_security_group_ids = [aws_security_group.ec2.id]
-  key_name              = "portfolio-key"
-  iam_instance_profile  = aws_iam_instance_profile.ec2_profile.name
+  key_name               = "portfolio-key"
+  iam_instance_profile   = aws_iam_instance_profile.ec2_profile.name
 
   root_block_device {
     volume_size = 30
@@ -274,13 +274,33 @@ resource "aws_instance" "app" {
 }
 
 # 탄력적 IP
-resource "aws_eip" "app" {
-  instance = aws_instance.app.id
+#resource "aws_eip" "app" {
+#  instance = aws_instance.app.id
+#  vpc      = true
 
+#  tags = {
+#    Name = "portfolio-app-eip"
+#  }
+#}
+
+# 1) EIP "할당"만 담당
+resource "aws_eip" "app" {
+  # v5+에서는 vpc 대신 domain 사용
+  # - "vpc"로 설정하면 VPC용 EIP를 만든다는 뜻
+  domain = "vpc"
   tags = {
     Name = "portfolio-app-eip"
   }
 }
+
+# 2) EIP를 EC2에 "연결"하는 별도 리소스
+resource "aws_eip_association" "app" {
+  # EC2 인스턴스에 붙임
+  instance_id = aws_instance.app.id
+  # VPC용 EIP는 allocation_id로 연결
+  allocation_id = aws_eip.app.id
+}
+
 
 # 출력값
 output "public_ip" {
@@ -292,14 +312,14 @@ output "ssh_command" {
 }
 
 output "instance_id" {
-  value = aws_instance.app.id
+  value       = aws_instance.app.id
   description = "EC2 인스턴스 ID"
 }
 
 # ECR 저장소 생성
 resource "aws_ecr_repository" "app" {
-  name = "backend-portfolio"
-  force_delete = true  # 이 줄 추가
+  name         = "backend-portfolio"
+  force_delete = true # 이 줄 추가
 
   image_scanning_configuration {
     scan_on_push = true
@@ -345,7 +365,7 @@ output "ecr_repository_url" {
 # 키 페어 생성
 resource "aws_key_pair" "portfolio" {
   key_name   = "portfolio-key"
-  public_key = file("${path.module}/portfolio-key.pub")  # 로컬에 있는 public key 파일 경로
+  public_key = file("${path.module}/portfolio-key.pub") # 로컬에 있는 public key 파일 경로
 }
 
 # RDS 보안 그룹
@@ -356,10 +376,10 @@ resource "aws_security_group" "rds" {
 
   # 외부에서의 MySQL 접속 허용
   ingress {
-    from_port       = 3306
-    to_port         = 3306
-    protocol        = "tcp"
-    cidr_blocks     = ["0.0.0.0/0"]  # 모든 IP에서 접근 가능
+    from_port   = 3306
+    to_port     = 3306
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"] # 모든 IP에서 접근 가능
   }
 
   tags = {
@@ -403,26 +423,26 @@ resource "aws_iam_role_policy_attachment" "rds_enhanced_monitoring" {
 
 # RDS 인스턴스
 resource "aws_db_instance" "portfolio" {
-  identifier           = "portfolio-db"
-  engine              = "mysql"
-  engine_version      = "8.0"
-  instance_class      = "db.t3.micro"
-  allocated_storage   = 20
-  storage_type        = "gp2"
-  
-  db_name             = "portfolio"
-  username           = "portfolio_user"
-  password           = var.db_password
-  
+  identifier        = "portfolio-db"
+  engine            = "mysql"
+  engine_version    = "8.0"
+  instance_class    = "db.t3.micro"
+  allocated_storage = 20
+  storage_type      = "gp2"
+
+  db_name  = "portfolio"
+  username = "portfolio_user"
+  password = var.db_password
+
   vpc_security_group_ids = [aws_security_group.rds.id]
   db_subnet_group_name   = aws_db_subnet_group.rds.name
-  
-  skip_final_snapshot    = true
-  publicly_accessible    = true
-  
-  monitoring_interval = 60  # 60초마다 지표 수집
+
+  skip_final_snapshot = true
+  publicly_accessible = true
+
+  monitoring_interval = 60 # 60초마다 지표 수집
   monitoring_role_arn = aws_iam_role.rds_enhanced_monitoring.arn
-  
+
   tags = {
     Name = "portfolio-db"
   }
