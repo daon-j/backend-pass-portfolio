@@ -11,7 +11,7 @@ import org.springframework.scheduling.annotation.EnableScheduling;
 public class BackendportfolioApplication {
     public static void main(String[] args) {
 
-        System.out.println("정은 화이팅!!! 괜찮아!!! 해보는거지! 괜찮아!!");
+        System.out.println("정은 화이팅!!! 괜찮아!!! 해보는거지! 힘내자! 할수 있어!!");
         SpringApplication.run(BackendportfolioApplication.class, args);
     }
 
